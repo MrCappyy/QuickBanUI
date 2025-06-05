@@ -19,8 +19,7 @@ public class UpdateChecker implements Listener {
 
     private final QuickBanUI plugin;
 
-    // TODO: Replace with your actual SpigotMC resource ID when you publish
-    private static final int RESOURCE_ID = 0; // Change this!
+    private static final int RESOURCE_ID = 125735;
     private static final boolean ENABLED = true;
     private static final boolean NOTIFY_OPS = true;
     private static final long CHECK_INTERVAL_HOURS = 12;

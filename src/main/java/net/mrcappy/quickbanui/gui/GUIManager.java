@@ -524,8 +524,9 @@ public class GUIManager implements Listener {
 
         if (e.getCurrentItem() == null || e.getCurrentItem().getType() == Material.AIR) return;
 
-        // Ignore filler items
-        if (e.getCurrentItem().getType() == Material.valueOf(plugin.getConfig().getString("gui.filler-material", "GRAY_STAINED_GLASS_PANE"))) return;
+        // Ignore filler items - FIXED VERSION
+        ItemMeta clickedMeta = e.getCurrentItem().getItemMeta();
+        if (clickedMeta != null && clickedMeta.getDisplayName().equals(" ")) return;
 
         int slot = e.getSlot();
 
@@ -538,7 +539,7 @@ public class GUIManager implements Listener {
         // Punishment type menu
         Session session = sessions.get(player.getUniqueId());
         if (session != null && (title.contains("Ban ") || title.contains("Mute ") ||
-                title.contains("Kick ") || title.contains("Warn "))) {
+                                title.contains("Kick ") || title.contains("Warn "))) {
             handlePunishmentMenuClick(player, session, slot, e);
             return;
         }
@@ -591,7 +592,7 @@ public class GUIManager implements Listener {
                 session.inputMode = true;
                 player.sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.input-reason")));
                 player.sendMessage(plugin.getPrefix() + "§7Maximum length: §e" +
-                        plugin.getConfig().getInt("advanced.max-reason-length", 100) + " §7characters");
+                                   plugin.getConfig().getInt("advanced.max-reason-length", 100) + " §7characters");
             }
             case 8 -> {
                 // Silent toggle
@@ -695,7 +696,7 @@ public class GUIManager implements Listener {
             player.closeInventory();
             player.sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.input-reason")));
             player.sendMessage(plugin.getPrefix() + "§7Maximum length: §e" +
-                    plugin.getConfig().getInt("advanced.max-reason-length", 100) + " §7characters");
+                               plugin.getConfig().getInt("advanced.max-reason-length", 100) + " §7characters");
         } else if (slot < 45 && e.getCurrentItem().getType() == Material.PAPER) {
             // Edit or remove existing reason
             List<String> reasons = plugin.getConfig().getStringList("punishment-reasons." + finalType.name().toLowerCase());
@@ -714,7 +715,7 @@ public class GUIManager implements Listener {
                     player.sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.current-reason"))
                             .replace("%reason%", reasons.get(slot)));
                     player.sendMessage(plugin.getPrefix() + "§7Maximum length: §e" +
-                            plugin.getConfig().getInt("advanced.max-reason-length", 100) + " §7characters");
+                                       plugin.getConfig().getInt("advanced.max-reason-length", 100) + " §7characters");
                 } else if (e.isRightClick()) {
                     // Remove
                     reasons.remove(slot);
@@ -740,7 +741,7 @@ public class GUIManager implements Listener {
                     session.reason = e.getMessage();
                 } else {
                     e.getPlayer().sendMessage(plugin.getPrefix() + "§cReason is too long! Maximum: " +
-                            plugin.getConfig().getInt("advanced.max-reason-length", 100) + " characters");
+                                              plugin.getConfig().getInt("advanced.max-reason-length", 100) + " characters");
                     e.getPlayer().sendMessage(plugin.getPrefix() + "§7Your reason was §e" + e.getMessage().length() + " §7characters.");
                 }
             }
@@ -761,7 +762,7 @@ public class GUIManager implements Listener {
                 // Check length
                 if (!plugin.checkReasonLength(e.getMessage())) {
                     e.getPlayer().sendMessage(plugin.getPrefix() + "§cReason is too long! Maximum: " +
-                            plugin.getConfig().getInt("advanced.max-reason-length", 100) + " characters");
+                                              plugin.getConfig().getInt("advanced.max-reason-length", 100) + " characters");
                     e.getPlayer().sendMessage(plugin.getPrefix() + "§7Your reason was §e" + e.getMessage().length() + " §7characters.");
                     Bukkit.getScheduler().runTask(plugin, () ->
                             openReasonsList(e.getPlayer(), editSession.type));
