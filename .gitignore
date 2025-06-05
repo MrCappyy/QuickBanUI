@@ -1,19 +1,79 @@
- 
-# Build files
-target/
-*.jar
+# Eclipse
+.classpath
+.project
+.settings/
 
-# IDE files
+# IntelliJ
 .idea/
 *.iml
-.vscode/
-.settings/
-.project
-.classpath
+*.iws
 
-# OS files
+# Mac
 .DS_Store
-Thumbs.db
 
 # Maven
+log/
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
 dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Compiled files
+/bin/
+/out/
+
+# Package Files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.tar
+*.zip
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+
+# OS generated files
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~.nib
+local.properties
+.settings/
+.loadpath
+.recommenders
+
+# Server files (for testing)
+/test-server/
+/server/
+/run/
+
+# Config files with sensitive data
+config-local.yml
+test-config.yml

@@ -1,33 +1,37 @@
-# QuickBanUI Configuration v2.0
-# Developed by MrCappy
-# Advanced Punishment System
+# QuickBanUI Configuration
+# Version: 2.0
+# Author: MrCappy
 
 # ======================
 # General Settings
 # ======================
 settings:
-  # Should punishments be broadcasted to staff members?
+  # Broadcast punishments to staff with quickban.notify permission
   broadcast-punishments: true
 
-  # Should all punishments be logged to console?
+  # Log all punishments to console
   log-to-console: true
 
-  # Date format for logs
+  # Date format for logs and history
   date-format: "yyyy-MM-dd HH:mm:ss"
 
-  # Enable debug mode
-  debug: false
+  # Appeal link shown in ban messages (leave empty to disable)
+  appeal-link: "discord.gg/yourserver"
 
-  # Punishment cooldown in seconds (prevent spam)
-  punishment-cooldown: 3
-
-  # Maximum custom reason length
-  max-reason-length: 100
+  # Commands blocked while muted
+  mute-blocked-commands:
+    - "tell"
+    - "msg"
+    - "w"
+    - "whisper"
+    - "r"
+    - "reply"
+    - "me"
+    - "say"
 
 # ======================
-# MySQL Configuration
+# MySQL Database
 # ======================
-# Enable MySQL to sync punishments across servers
 mysql:
   enabled: false
   host: "localhost"
@@ -42,61 +46,47 @@ mysql:
 # Discord Integration
 # ======================
 discord:
-  # Enable Discord webhook logging
+  # Enable Discord webhook notifications
   enabled: false
-  # Webhook URL from Discord
+
+  # Discord webhook URL
   webhook-url: ""
-  # What to log to Discord
-  log-bans: true
-  log-mutes: true
-  log-kicks: true
-  log-warns: true
-  # Include server name in webhook
-  include-server: true
+
+  # Bot username in Discord
+  username: "QuickBanUI"
+
+  # Avatar URL for the bot
+  avatar-url: "https://i.imgur.com/example.png"
+
+  # Footer icon URL
+  footer-icon: ""
+
+  # Show server name in embeds
+  show-server: true
+
+  # Server name to display
+  server-name: "My Server"
 
 # ======================
-# Analytics Settings
-# ======================
-analytics:
-  # Enable analytics collection
-  enabled: true
-  # Show analytics in console on startup
-  show-on-startup: true
-  # Analytics update interval (minutes)
-  update-interval: 5
-  # Debug analytics collection
-  debug: false
-
-# ======================
-# GUI Configuration
+# GUI Settings
 # ======================
 gui:
-  # Main menu title
-  main-menu-title: "&8Punish » &c%player%"
+  # Items per page in history GUI
+  history-items-per-page: 45
 
-  # Punishment menu titles
-  ban-menu-title: "&8Ban » &c%player%"
-  mute-menu-title: "&8Mute » &c%player%"
-  kick-menu-title: "&8Kick » &c%player%"
-  warn-menu-title: "&8Warn » &c%player%"
-
-  # History menu title
-  history-menu-title: "&8History » &c%player%"
-
-  # Analytics menu title
-  analytics-menu-title: "&8Analytics"
-
-  # Reason editor title
-  reason-editor-title: "&8Reason Editor"
-
-  # Fill empty slots
+  # Fill empty slots with glass panes
   fill-empty-slots: true
+
+  # Material for empty slots
   filler-material: GRAY_STAINED_GLASS_PANE
+
+  # Show player heads in GUIs
+  show-player-heads: true
 
 # ======================
 # Punishment Reasons
 # ======================
-# Customize quick reasons for each punishment type
+# Customize quick-select reasons for each punishment type
 punishment-reasons:
   ban:
     - "Hacking"
@@ -110,7 +100,7 @@ punishment-reasons:
     - "Spamming"
     - "Toxicity"
     - "Advertising"
-    - "Caps"
+    - "Excessive Caps"
     - "Inappropriate Language"
     - "Harassment"
 
@@ -119,37 +109,37 @@ punishment-reasons:
     - "Inappropriate Behavior"
     - "Server Full"
     - "Restart Required"
-    - "Flying"
+    - "Flying/Hacking"
     - "Warning"
 
   warn:
-    - "Minor Violation"
-    - "Language"
-    - "Behavior"
-    - "Building Rules"
-    - "Chat Rules"
+    - "Minor Rule Violation"
+    - "Inappropriate Language"
+    - "Disrespectful Behavior"
+    - "Building Violation"
+    - "Chat Violation"
     - "First Offense"
 
 # ======================
 # Reason Materials
 # ======================
-# Materials for reason items in GUI (optional)
+# Materials for reason items in GUI
 reason-materials:
   ban:
-    - DIAMOND_SWORD
-    - POISONOUS_POTATO
+    - BARRIER
     - TNT
-    - PAPER
-    - EMERALD
-    - BOOK
+    - LAVA_BUCKET
+    - NETHERITE_SWORD
+    - WITHER_SKELETON_SKULL
+    - END_CRYSTAL
 
   mute:
     - PAPER
     - BOOK
-    - FEATHER
-    - INK_SAC
     - WRITABLE_BOOK
-    - KNOWLEDGE_BOOK
+    - NAME_TAG
+    - OAK_SIGN
+    - BELL
 
   kick:
     - LEATHER_BOOTS
@@ -157,15 +147,15 @@ reason-materials:
     - GOLDEN_BOOTS
     - DIAMOND_BOOTS
     - NETHERITE_BOOTS
-    - CHAINMAIL_BOOTS
+    - ELYTRA
 
   warn:
-    - BOOK
-    - WRITABLE_BOOK
-    - KNOWLEDGE_BOOK
-    - PAPER
-    - MAP
-    - FILLED_MAP
+    - YELLOW_DYE
+    - YELLOW_BANNER
+    - GOLD_INGOT
+    - BELL
+    - GLOWSTONE
+    - YELLOW_WOOL
 
 # ======================
 # Duration Settings
@@ -173,82 +163,58 @@ reason-materials:
 durations:
   # Available duration options
   options:
+    - "5m"
+    - "10m"
     - "30m"
     - "1h"
-    - "3h"
+    - "2h"
+    - "6h"
+    - "12h"
     - "1d"
     - "3d"
     - "7d"
+    - "14d"
     - "30d"
+    - "60d"
+    - "90d"
     - "permanent"
 
-  # Default durations
+  # Default duration for each type
   defaults:
     ban: "7d"
     mute: "1h"
-    kick: "none"
-    warn: "none"
 
 # ======================
-# Permission Presets
+# Permission Settings
 # ======================
-# Role-based permission groups
-roles:
-  helper:
-    # Helpers can only warn
-    can-ban: false
-    can-mute: false
-    can-kick: false
-    can-warn: true
-    can-view-history: true
-    can-silent: false
-    max-warn-duration: "none"
+permissions:
+  # Max duration for each permission group (in days, -1 for unlimited)
+  max-duration:
+    helper: 1
+    moderator: 30
+    admin: -1
 
-  moderator:
-    # Moderators can do temporary punishments
-    can-ban: true
-    can-mute: true
-    can-kick: true
-    can-warn: true
-    can-view-history: true
-    can-silent: false
-    max-ban-duration: "30d"
-    max-mute-duration: "7d"
-
-  admin:
-    # Admins have full access
-    can-ban: true
-    can-mute: true
-    can-kick: true
-    can-warn: true
-    can-view-history: true
-    can-silent: true
-    can-permanent: true
-    can-undo: true
+  # Can use permanent punishments
+  permanent:
+    helper: false
+    moderator: false
+    admin: true
 
 # ======================
 # Advanced Settings
 # ======================
 advanced:
-  # Check for updates
-  check-for-updates: true
-
-  # Auto-save interval (minutes)
+  # Auto-save interval in minutes (0 to disable)
   auto-save-interval: 5
 
-  # Log to file
-  log-to-file: false
-  log-file-path: "plugins/QuickBanUI/punishments.log"
+  # Maximum custom reason length
+  max-reason-length: 100
 
-  # Backup history before saving
-  backup-history: true
-  max-backups: 10
+  # Punishment cooldown in seconds (prevent spam)
+  punishment-cooldown: 3
 
-  # Performance settings
-  cache-player-names: true
-  async-operations: true
+  # Check for expired punishments every X seconds
+  expiry-check-interval: 20
 
-# ======================
-# DO NOT EDIT BELOW
-# ======================
-config-version: 2
+  # Enable debug messages
+  debug: false

@@ -1,18 +1,17 @@
-# ============================================
-#         QuickBanUI Language File
-#           Customize all messages
-# ============================================
+# QuickBanUI Language Configuration
+# Customize all messages here
 
 messages:
-  # Plugin prefix
+  # Prefix for all messages
   prefix: "&c&lQuickBan &8» &7"
 
-  # Command messages
-  console-only: "&cThis command can only be used by players!"
+  # General messages
   no-permission: "&cYou don't have permission to use this command!"
+  console-only: "&cThis command can only be used by players!"
   player-not-found: "&cPlayer '&e%player%&c' has never joined the server!"
   cannot-punish-self: "&cYou cannot punish yourself!"
   player-exempt: "&cThis player is exempt from punishments!"
+  reload-success: "&aConfiguration reloaded successfully!"
 
   # Usage messages
   usage:
@@ -28,8 +27,7 @@ messages:
   # Punishment messages
   punishment-success: "&aSuccessfully %type% &e%player%&a!"
   punishment-cancelled: "&cPunishment cancelled."
-  must-set-reason: "&cYou must set a reason before punishing!"
-  execution-failed: "&cFailed to execute punishment! Check console for errors."
+  cannot-use-commands-muted: "&cYou cannot use this command while muted!"
 
   # Unban/Unmute messages
   player-not-banned: "&cThat player is not banned!"
@@ -37,12 +35,6 @@ messages:
   unban-success: "&aSuccessfully unbanned &e%player%"
   unmute-success: "&aSuccessfully unmuted &e%player%"
   target-unmuted: "&aYou have been unmuted!"
-
-  # Custom reason prompts
-  custom-reason-prompt: "&e&lCUSTOM REASON"
-  custom-reason-example: "&7Type the punishment reason in chat:"
-  custom-reason-cancel: "&7Type &c'cancel' &7to cancel."
-  custom-reason-cancelled: "&cCustom reason input cancelled."
 
   # History messages
   no-history: "&7This player has a clean record!"
@@ -54,12 +46,8 @@ messages:
   staff-unban-notification: "&e%staff% &7has unbanned &a%player%"
   staff-unmute-notification: "&e%staff% &7has unmuted &a%player%"
 
-  # Silent mode
-  silent-enabled: "&7Silent mode &a&lENABLED"
-  silent-disabled: "&7Silent mode &c&lDISABLED"
-
   # Analytics
-  analytics-today: "&6Today's Punishments:"
+  analytics-title: "&6&l=== QuickBanUI Analytics ==="
   analytics-total: "&eTotal Punishments: &f%amount%"
   analytics-top-players: "&cTop Offenders:"
   analytics-staff-activity: "&eStaff Activity:"
@@ -69,11 +57,10 @@ messages:
   cannot-warn-offline: "&cCannot warn an offline player!"
 
 # ============================================
-# Punishment Screen Messages (What players see)
+# Punishment Screens (What players see)
 # ============================================
-
 punishment-screens:
-  # Ban screen (when trying to join)
+  # Ban screen
   ban:
     title: "&c&lYou are banned from this server!"
     reason: "&7Reason: &f%reason%"
@@ -83,7 +70,7 @@ punishment-screens:
     time-left: "&7Time left: &e%time%"
     appeal: "&7Appeal at: &b%appeal%"
 
-  # Mute messages (when trying to chat)
+  # Mute messages
   mute:
     chat-blocked: "&cYou are currently muted!"
     reason: "&7Reason: &f%reason%"
@@ -106,9 +93,8 @@ punishment-screens:
     notice: "&7Please follow the server rules!"
 
 # ============================================
-# GUI Text Customization
+# GUI Text
 # ============================================
-
 gui:
   # Main menu
   main:
@@ -122,12 +108,12 @@ gui:
       currently-muted: "&7Currently: &6Muted"
       click-history: "&e► Click to view history"
 
-    # Punishment buttons
+    # Buttons
     ban:
       name: "&c&lBAN"
       lore:
-        - "&7Permanently remove %player%"
-        - "&7from the server."
+        - "&7Remove %player% from"
+        - "&7the server."
         - ""
         - "&e► Click to select"
 
@@ -135,35 +121,35 @@ gui:
       name: "&6&lMUTE"
       lore:
         - "&7Prevent %player% from"
-        - "&7sending chat messages."
+        - "&7sending messages."
         - ""
         - "&e► Click to select"
 
     kick:
       name: "&e&lKICK"
       lore:
-        - "&7Remove %player% from"
-        - "&7the server temporarily."
+        - "&7Remove %player%"
+        - "&7temporarily."
         - ""
         - "&e► Click to select"
 
     warn:
       name: "&a&lWARN"
       lore:
-        - "&7Send a warning message"
-        - "&7to %player%."
+        - "&7Send a warning to"
+        - "&7%player%."
         - ""
         - "&e► Click to select"
 
     history:
       name: "&b&lHISTORY"
       lore:
-        - "&7View punishment history"
-        - "&7for %player%."
+        - "&7View punishment"
+        - "&7history."
         - ""
         - "&e► Click to view"
 
-  # Punishment GUI
+  # Punishment menu
   punishment:
     title: "&8%type% » &c%player%"
 
@@ -171,99 +157,124 @@ gui:
       name: "&6&lCUSTOM REASON"
       current: "&7Current: &f%reason%"
       none: "None"
-      click: "&e► Click to type custom reason"
+      click: "&e► Click to set"
 
     silent-mode:
-      name-on: "&7&lSILENT MODE &a&lON"
-      name-off: "&a&lSILENT MODE &c&lOFF"
-      status-on: "&7Punishment will &aNOT &7be broadcasted"
-      status-off: "&7Punishment will &cBE &7broadcasted"
+      name-on: "&7&lSILENT &a&lON"
+      name-off: "&a&lSILENT &c&lOFF"
+      status-on: "&7Broadcast: &cNo"
+      status-off: "&7Broadcast: &aYes"
       click: "&e► Click to toggle"
 
     duration:
-      name: "&l%duration%"
-      current: "&7Current duration setting"
-      left-click: "&e► Left-click to increase duration"
-      right-click: "&e► Right-click to decrease duration"
-      options: "&7Options: 30m → 1h → 3h → 1d → 3d → 7d → 30d → Permanent"
-
-    reason-item:
-      selected: "&a%reason%"
-      unselected: "&e%reason%"
-      selected-lore: "&a✔ Selected"
-      unselected-lore: "&7Click to use this reason"
-      currently-selected: "&a► Currently selected"
-      click-to-select: "&e► Click to select"
+      name: "&e&l%duration%"
+      current: "&7Duration"
+      left-click: "&aLeft-click: &7Increase"
+      right-click: "&cRight-click: &7Decrease"
 
     confirm:
-      name-ready: "&a&lCONFIRM PUNISHMENT"
-      name-not-ready: "&c&lCANNOT CONFIRM"
+      name-ready: "&a&lCONFIRM"
+      name-not-ready: "&c&lNOT READY"
       target: "&7Target: &f%player%"
-      type: "&7Type: &c%type%"
       reason: "&7Reason: &f%reason%"
-      reason-not-set: "&cNot Set!"
+      reason-not-set: "&cNot set!"
       duration: "&7Duration: &f%duration%"
-      silent: "&7Silent: %status%"
-      silent-yes: "&aYes"
-      silent-no: "&cNo"
       click-execute: "&a► Click to execute"
-      set-requirements: "&c► Set reason%requirements%"
-      and-duration: " and duration"
-
-    back:
-      name: "&c&lBACK"
-      lore:
-        - "&7Return to main menu"
-        - ""
-        - "&e► Click to go back"
-
-    cancel:
-      name: "&c&lCANCEL"
-      lore:
-        - "&7Cancel this punishment"
-        - ""
-        - "&e► Click to cancel"
-
-  # History GUI
-  history:
-    title: "&8History » &c%player%"
-    no-history-item: "&7No punishment history"
-    no-history-lore: "&7This player has a clean record!"
-
-    punishment-item:
-      name: "&c%type% &7- %time_ago%"
-      reason: "&7Reason: &f%reason%"
-      duration: "&7Duration: &f%duration%"
-      duration-na: "N/A"
-      staff: "&7Staff: &e%staff%"
-      date: "&7Date: &f%date%"
-      active: "&a✓ Active"
-      expired: "&c✗ Expired/Removed"
-      click-undo: "&e► Click to remove"
+      set-reason: "&c► Set a reason!"
 
     back:
       name: "&cBack"
       lore: "&7Return to main menu"
 
-# ============================================
-# Other Settings
-# ============================================
+    cancel:
+      name: "&cCancel"
+      lore: "&7Cancel punishment"
 
-settings:
-  # Appeal link shown in ban messages
-  appeal-link: "discord.gg/yourserver"
+  # History menu
+  history:
+    title: "&8History » &c%player% &7(Page %page%/%pages%)"
+    no-history: "&7Clean record!"
 
-  # Date/time formats
-  date-format: "yyyy-MM-dd HH:mm"
+    punishment-item:
+      name: "&c%type% &7- %time_ago%"
+      reason: "&7Reason: &f%reason%"
+      duration: "&7Duration: &f%duration%"
+      staff: "&7Staff: &e%staff%"
+      date: "&7Date: &f%date%"
+      active: "&a✓ Active"
+      expired: "&c✗ Expired"
 
-  # Time ago format
-  time-ago:
-    second: "%amount% second"
-    seconds: "%amount% seconds"
-    minute: "%amount% minute"
-    minutes: "%amount% minutes"
-    hour: "%amount% hour"
-    hours: "%amount% hours"
-    day: "%amount% day"
-    days: "%amount% days"
-    ago: " ago"
+    back:
+      name: "&cBack"
+      lore: "&7Return to main menu"
+
+  # Analytics menu
+  analytics:
+    title: "&8Analytics"
+
+    overview:
+      name: "&6&lOVERVIEW"
+      total: "&7Total punishments: &e%total%"
+      active-bans: "&7Active bans: &c%bans%"
+      active-mutes: "&7Active mutes: &6%mutes%"
+
+    type-stats:
+      name: "&e%type%s"
+      total: "&7Total: &f%count%"
+      percentage: "&7Percentage: &f%percent%%"
+
+    staff-stats:
+      name: "&b&lTOP STAFF"
+      header: "&7Most active staff:"
+      entry: "&b%staff%: &f%count%"
+
+    player-stats:
+      name: "&c&lTOP OFFENDERS"
+      header: "&7Most punished players:"
+      entry: "&c%player%: &f%count%"
+
+    close:
+      name: "&cClose"
+      lore: "&7Close analytics"
+
+  # Reason editor
+  reasons:
+    title: "&8Reason Editor"
+
+    type-selector:
+      ban: "&c&lBAN REASONS"
+      mute: "&6&lMUTE REASONS"
+      kick: "&e&lKICK REASONS"
+      warn: "&a&lWARN REASONS"
+      lore:
+        - "&7Edit %type% reasons"
+        - ""
+        - "&e► Click to edit"
+
+    list-title: "&8Edit %type% Reasons"
+
+    reason-item:
+      name: "&e%reason%"
+      number: "&7Reason #%number%"
+      left-click: "&aLeft-click: &7Edit"
+      right-click: "&cRight-click: &7Remove"
+
+    add-reason:
+      name: "&a&lADD REASON"
+      lore:
+        - "&7Add a new reason"
+        - ""
+        - "&e► Click to add"
+
+    back:
+      name: "&cBack"
+      lore: "&7Go back"
+
+    # Chat prompts
+    input-reason: "&eType the new reason in chat (or 'cancel'):"
+    input-edit: "&eType the new reason (or 'cancel'):"
+    current-reason: "&7Current: &f%reason%"
+    reason-added: "&aReason added successfully!"
+    reason-updated: "&aReason updated successfully!"
+    reason-removed: "&cReason removed!"
+    cancelled: "&cCancelled."

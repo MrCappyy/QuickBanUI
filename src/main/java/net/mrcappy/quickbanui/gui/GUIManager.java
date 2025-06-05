@@ -1,9 +1,10 @@
 package net.mrcappy.quickbanui.gui;
 
 import net.mrcappy.quickbanui.QuickBanUI;
-import net.mrcappy.quickbanui.QuickBanUI.*;
+import net.mrcappy.quickbanui.PunishmentManager;
+import net.mrcappy.quickbanui.PunishmentManager.PunishmentType;
+import net.mrcappy.quickbanui.PunishmentManager.Punishment;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
@@ -25,657 +26,864 @@ import java.util.*;
 public class GUIManager implements Listener {
 
     private final QuickBanUI plugin;
-    private final Map<UUID, PunishmentSession> sessions = new HashMap<>();
+
+    // Track active sessions
+    private final Map<UUID, Session> sessions = new HashMap<>();
     private final Map<UUID, ReasonEditSession> reasonEditSessions = new HashMap<>();
 
     public GUIManager(QuickBanUI plugin) {
         this.plugin = plugin;
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
-    // ========== MAIN MENU ==========
     public void openMainMenu(Player staff, OfflinePlayer target) {
-        Inventory gui = Bukkit.createInventory(null, 45, "§8Punish » §c" + target.getName());
+        String title = plugin.color(plugin.getLang().getString("gui.main.title", "&8Punish » &c%player%"))
+                .replace("%player%", target.getName());
+        Inventory inv = Bukkit.createInventory(null, 45, title);
 
-        // Player head (slot 4)
+        // Player head with info
+        if (plugin.getConfig().getBoolean("gui.show-player-heads", true)) {
+            ItemStack head = createPlayerHead(target);
+            inv.setItem(4, head);
+        }
+
+        // Punishment buttons
+        inv.setItem(20, createButton("ban", target.getName(), Material.BARRIER));
+        inv.setItem(22, createButton("mute", target.getName(), Material.PAPER));
+        inv.setItem(24, createButton("kick", target.getName(), Material.LEATHER_BOOTS));
+        inv.setItem(30, createButton("warn", target.getName(), Material.BOOK));
+        inv.setItem(32, createButton("history", target.getName(), Material.WRITABLE_BOOK));
+
+        fillEmpty(inv);
+        staff.openInventory(inv);
+    }
+
+    private ItemStack createPlayerHead(OfflinePlayer target) {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         meta.setOwningPlayer(target);
-        meta.setDisplayName("§c" + target.getName());
+        meta.setDisplayName(plugin.color(plugin.getLang().getString("gui.main.player-info.name"))
+                .replace("%player%", target.getName()));
 
         List<String> lore = new ArrayList<>();
-        lore.add("§7UUID: §f" + target.getUniqueId().toString().substring(0, 8) + "...");
-        lore.add("§7Status: " + (target.isOnline() ? "§aOnline" : "§cOffline"));
-        if (plugin.isBanned(target.getUniqueId())) lore.add("§7Currently: §cBanned");
-        if (plugin.isMuted(target.getUniqueId())) lore.add("§7Currently: §6Muted");
+
+        // Show UUID (first 8 chars for readability)
+        lore.add(plugin.color(plugin.getLang().getString("gui.main.player-info.uuid"))
+                .replace("%uuid%", target.getUniqueId().toString().substring(0, 8)));
+
+        // Online status
+        lore.add(target.isOnline() ?
+                plugin.color(plugin.getLang().getString("gui.main.player-info.status-online")) :
+                plugin.color(plugin.getLang().getString("gui.main.player-info.status-offline")));
+
+        // Current punishments
+        if (plugin.getPunishmentManager().isBanned(target.getUniqueId())) {
+            lore.add(plugin.color(plugin.getLang().getString("gui.main.player-info.currently-banned")));
+        }
+        if (plugin.getPunishmentManager().isMuted(target.getUniqueId())) {
+            lore.add(plugin.color(plugin.getLang().getString("gui.main.player-info.currently-muted")));
+        }
+
         lore.add("");
-        lore.add("§e► Click for history");
+        lore.add(plugin.color(plugin.getLang().getString("gui.main.player-info.click-history")));
 
         meta.setLore(lore);
         head.setItemMeta(meta);
-        gui.setItem(4, head);
-
-        // Punishment buttons
-        gui.setItem(20, createItem(Material.BARRIER, "§c§lBAN",
-                "§7Remove " + target.getName() + " from server", "", "§e► Click to ban"));
-
-        gui.setItem(22, createItem(Material.PAPER, "§6§lMUTE",
-                "§7Prevent " + target.getName() + " from chatting", "", "§e► Click to mute"));
-
-        gui.setItem(24, createItem(Material.LEATHER_BOOTS, "§e§lKICK",
-                "§7Remove " + target.getName() + " temporarily", "", "§e► Click to kick"));
-
-        gui.setItem(30, createItem(Material.BOOK, "§a§lWARN",
-                "§7Send warning to " + target.getName(), "", "§e► Click to warn"));
-
-        gui.setItem(32, createItem(Material.WRITABLE_BOOK, "§b§lHISTORY",
-                "§7View punishment history", "", "§e► Click to view"));
-
-        fillEmpty(gui);
-        staff.openInventory(gui);
+        return head;
     }
 
-    // ========== PUNISHMENT MENU ==========
     public void openPunishmentMenu(Player staff, OfflinePlayer target, PunishmentType type) {
-        PunishmentSession session = sessions.computeIfAbsent(staff.getUniqueId(),
-                k -> new PunishmentSession());
-
+        Session session = sessions.computeIfAbsent(staff.getUniqueId(), k -> new Session());
         session.target = target;
         session.type = type;
 
-        // Get customizable title from lang config
-        String titleFormat = plugin.getLangConfig().getString("gui." + type.name().toLowerCase() + "-menu-title",
-                "&8%type% » &c%player%");
-        String title = titleFormat.replace("%type%", type.getDisplayName())
-                .replace("%player%", target.getName()).replace("&", "§");
+        String title = plugin.color(plugin.getLang().getString("gui.punishment.title"))
+                .replace("%type%", type.getDisplay())
+                .replace("%player%", target.getName());
 
-        Inventory gui = Bukkit.createInventory(null, 54, title);
+        Inventory inv = Bukkit.createInventory(null, 54, title);
 
-        // Custom reason (slot 4)
-        String customReasonName = plugin.getLangConfig().getString("gui.punishment.custom-reason.name", "&6&lCUSTOM REASON").replace("&", "§");
-        String currentText = plugin.getLangConfig().getString("gui.punishment.custom-reason.current", "&7Current: &f%reason%")
-                .replace("%reason%", session.reason.isEmpty() ? "None" : session.reason).replace("&", "§");
-        String clickText = plugin.getLangConfig().getString("gui.punishment.custom-reason.click", "&e► Click to set").replace("&", "§");
+        // Custom reason book
+        inv.setItem(4, createCustomReasonItem(session));
 
-        gui.setItem(4, createItem(Material.WRITABLE_BOOK, customReasonName,
-                currentText, "", clickText));
-
-        // Silent toggle (slot 8) - check if player has permission
+        // Silent mode toggle (if they have permission)
         if (staff.hasPermission("quickban.silent")) {
-            String silentName = plugin.getLangConfig().getString("gui.punishment.silent-mode.name-" + (session.silent ? "on" : "off"),
-                    session.silent ? "&7&lSILENT &a&lON" : "&a&lSILENT &c&lOFF").replace("&", "§");
-            String silentStatus = plugin.getLangConfig().getString("gui.punishment.silent-mode.status-" + (session.silent ? "on" : "off"),
-                    "&7Broadcast: " + (session.silent ? "&cNo" : "&aYes")).replace("&", "§");
-
-            gui.setItem(8, createItem(session.silent ? Material.GRAY_DYE : Material.LIME_DYE,
-                    silentName, silentStatus, "", "§e► Click to toggle"));
+            inv.setItem(8, createSilentModeItem(session));
         }
 
-        // Quick reasons with custom materials from config
-        String[] reasons = getReasons(type);
-        List<String> materialNames = plugin.getConfig().getStringList("reason-materials." + type.name().toLowerCase());
-        Material[] defaultMats = {Material.DIAMOND_SWORD, Material.POISONOUS_POTATO,
-                Material.TNT, Material.PAPER, Material.EMERALD, Material.BOOK};
+        // Quick reasons
+        addQuickReasons(inv, type, session);
 
-        int[] slots = {19, 20, 21, 28, 29, 30};
-
-        for (int i = 0; i < Math.min(reasons.length, 6); i++) {
-            Material mat = defaultMats[i % defaultMats.length];
-
-            // Try to use custom material if specified
-            if (i < materialNames.size()) {
-                try {
-                    mat = Material.valueOf(materialNames.get(i).toUpperCase());
-                } catch (IllegalArgumentException ignored) {}
-            }
-
-            boolean selected = reasons[i].equals(session.reason);
-            gui.setItem(slots[i], createItem(mat,
-                    (selected ? "§a" : "§e") + reasons[i],
-                    selected ? "§a✔ Selected" : "§7Click to select"));
-        }
-
-        // Duration (slot 13) - only for ban/mute
+        // Duration selector for bans/mutes
         if (type == PunishmentType.BAN || type == PunishmentType.MUTE) {
-            // Load default duration from config
-            if (session.duration.equals("7d")) { // If still default
-                String configDefault = plugin.getConfig().getString("durations.defaults." + type.name().toLowerCase(), "7d");
-                session.duration = configDefault;
+            if (session.duration == null || session.duration.isEmpty()) {
+                session.duration = plugin.getConfig().getString("durations.defaults." + type.name().toLowerCase(), "7d");
             }
-
-            Material mat = getDurationMaterial(session.duration);
-            String color = getDurationColor(session.duration);
-
-            gui.setItem(13, createItem(mat, color + "§l" + formatDuration(session.duration),
-                    "§7Duration setting", "",
-                    "§aLeft-click: §7Increase",
-                    "§cRight-click: §7Decrease"));
+            inv.setItem(13, createDurationItem(session));
         }
 
-        // Confirm (slot 49)
-        boolean ready = !session.reason.isEmpty();
-        gui.setItem(49, createItem(ready ? Material.EMERALD_BLOCK : Material.REDSTONE_BLOCK,
-                ready ? "§a§lCONFIRM" : "§c§lNOT READY",
-                "§7Target: §f" + target.getName(),
-                "§7Reason: §f" + (session.reason.isEmpty() ? "§cNone!" : session.reason),
-                "§7Duration: §f" + formatDuration(session.duration),
-                "", ready ? "§a► Click to execute!" : "§c► Set a reason!"));
+        // Confirm button
+        inv.setItem(49, createConfirmButton(session, target));
 
         // Navigation
-        gui.setItem(45, createItem(Material.ARROW, "§cBack"));
-        gui.setItem(53, createItem(Material.BARRIER, "§cCancel"));
+        inv.setItem(45, createSimpleButton("gui.punishment.back", Material.ARROW));
+        inv.setItem(53, createSimpleButton("gui.punishment.cancel", Material.BARRIER));
 
-        fillEmpty(gui);
-        staff.openInventory(gui);
+        fillEmpty(inv);
+        staff.openInventory(inv);
     }
 
-    // ========== HISTORY MENU ==========
-    public void openHistoryMenu(Player staff, OfflinePlayer target) {
-        Inventory gui = Bukkit.createInventory(null, 54, "§8History » §c" + target.getName());
+    private ItemStack createCustomReasonItem(Session session) {
+        ItemStack customReason = new ItemStack(Material.WRITABLE_BOOK);
+        ItemMeta customMeta = customReason.getItemMeta();
+        customMeta.setDisplayName(plugin.color(plugin.getLang().getString("gui.punishment.custom-reason.name")));
 
-        List<PunishmentRecord> history = plugin.getHistory(target.getUniqueId());
-        history.sort((a, b) -> Long.compare(b.timestamp, a.timestamp));
+        List<String> customLore = new ArrayList<>();
+        customLore.add(plugin.color(plugin.getLang().getString("gui.punishment.custom-reason.current"))
+                .replace("%reason%", session.reason.isEmpty() ?
+                        plugin.getLang().getString("gui.punishment.custom-reason.none") : session.reason));
+        customLore.add("");
+        customLore.add(plugin.color(plugin.getLang().getString("gui.punishment.custom-reason.click")));
+        customMeta.setLore(customLore);
+        customReason.setItemMeta(customMeta);
+        return customReason;
+    }
+
+    private ItemStack createSilentModeItem(Session session) {
+        Material silentMat = session.silent ? Material.GRAY_DYE : Material.LIME_DYE;
+        ItemStack silent = new ItemStack(silentMat);
+        ItemMeta silentMeta = silent.getItemMeta();
+
+        silentMeta.setDisplayName(plugin.color(plugin.getLang().getString(
+                "gui.punishment.silent-mode.name-" + (session.silent ? "on" : "off"))));
+
+        List<String> silentLore = Arrays.asList(
+                plugin.color(plugin.getLang().getString(
+                        "gui.punishment.silent-mode.status-" + (session.silent ? "on" : "off"))),
+                "",
+                plugin.color(plugin.getLang().getString("gui.punishment.silent-mode.click"))
+        );
+        silentMeta.setLore(silentLore);
+        silent.setItemMeta(silentMeta);
+        return silent;
+    }
+
+    private void addQuickReasons(Inventory inv, PunishmentType type, Session session) {
+        List<String> reasons = plugin.getConfig().getStringList("punishment-reasons." + type.name().toLowerCase());
+        List<String> materials = plugin.getConfig().getStringList("reason-materials." + type.name().toLowerCase());
+        int[] slots = {19, 20, 21, 28, 29, 30};
+
+        for (int i = 0; i < Math.min(reasons.size(), slots.length); i++) {
+            Material mat = Material.PAPER;
+
+            // Try to get the material
+            if (i < materials.size()) {
+                try {
+                    mat = Material.valueOf(materials.get(i));
+                } catch (Exception ignored) {
+                    // Fallback to paper if invalid material
+                }
+            }
+
+            boolean selected = reasons.get(i).equals(session.reason);
+            ItemStack item = new ItemStack(mat);
+            ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName((selected ? "§a" : "§e") + reasons.get(i));
+            meta.setLore(Arrays.asList(selected ? "§a✔ Selected" : "§7Click to select"));
+            item.setItemMeta(meta);
+            inv.setItem(slots[i], item);
+        }
+    }
+
+    private ItemStack createDurationItem(Session session) {
+        ItemStack duration = new ItemStack(Material.CLOCK);
+        ItemMeta durMeta = duration.getItemMeta();
+        durMeta.setDisplayName(plugin.color(plugin.getLang().getString("gui.punishment.duration.name"))
+                .replace("%duration%", formatDuration(session.duration)));
+
+        List<String> durLore = Arrays.asList(
+                plugin.color(plugin.getLang().getString("gui.punishment.duration.current")),
+                "",
+                plugin.color(plugin.getLang().getString("gui.punishment.duration.left-click")),
+                plugin.color(plugin.getLang().getString("gui.punishment.duration.right-click"))
+        );
+        durMeta.setLore(durLore);
+        duration.setItemMeta(durMeta);
+        return duration;
+    }
+
+    private ItemStack createConfirmButton(Session session, OfflinePlayer target) {
+        boolean ready = !session.reason.isEmpty();
+        Material confirmMat = ready ? Material.EMERALD_BLOCK : Material.REDSTONE_BLOCK;
+        ItemStack confirm = new ItemStack(confirmMat);
+        ItemMeta confirmMeta = confirm.getItemMeta();
+
+        confirmMeta.setDisplayName(plugin.color(plugin.getLang().getString(
+                "gui.punishment.confirm.name-" + (ready ? "ready" : "not-ready"))));
+
+        List<String> confirmLore = new ArrayList<>();
+        confirmLore.add(plugin.color(plugin.getLang().getString("gui.punishment.confirm.target"))
+                .replace("%player%", target.getName()));
+        confirmLore.add(plugin.color(plugin.getLang().getString("gui.punishment.confirm.reason"))
+                .replace("%reason%", session.reason.isEmpty() ?
+                        plugin.getLang().getString("gui.punishment.confirm.reason-not-set") : session.reason));
+
+        if (session.type == PunishmentType.BAN || session.type == PunishmentType.MUTE) {
+            confirmLore.add(plugin.color(plugin.getLang().getString("gui.punishment.confirm.duration"))
+                    .replace("%duration%", formatDuration(session.duration)));
+        }
+
+        confirmLore.add("");
+        confirmLore.add(plugin.color(plugin.getLang().getString(
+                ready ? "gui.punishment.confirm.click-execute" : "gui.punishment.confirm.set-reason")));
+
+        confirmMeta.setLore(confirmLore);
+        confirm.setItemMeta(confirmMeta);
+        return confirm;
+    }
+
+    public void openHistory(Player staff, OfflinePlayer target) {
+        List<Punishment> history = plugin.getPunishmentManager().getHistory(target.getUniqueId());
+        int page = 0; // TODO: Add pagination support
+        int itemsPerPage = plugin.getConfig().getInt("gui.history-items-per-page", 45);
+        int pages = (int) Math.ceil(history.size() / (double) itemsPerPage);
+
+        String title = plugin.color(plugin.getLang().getString("gui.history.title"))
+                .replace("%player%", target.getName())
+                .replace("%page%", String.valueOf(page + 1))
+                .replace("%pages%", String.valueOf(Math.max(1, pages)));
+
+        Inventory inv = Bukkit.createInventory(null, 54, title);
+
+        if (history.isEmpty()) {
+            // No history
+            ItemStack empty = new ItemStack(Material.BOOK);
+            ItemMeta emptyMeta = empty.getItemMeta();
+            emptyMeta.setDisplayName(plugin.color(plugin.getLang().getString("gui.history.no-history")));
+            empty.setItemMeta(emptyMeta);
+            inv.setItem(22, empty);
+        } else {
+            // Display history items
+            displayHistoryItems(inv, history, page, itemsPerPage);
+        }
+
+        inv.setItem(49, createSimpleButton("gui.history.back", Material.ARROW));
+
+        fillEmpty(inv);
+        staff.openInventory(inv);
+    }
+
+    private void displayHistoryItems(Inventory inv, List<Punishment> history, int page, int itemsPerPage) {
+        String dateFormat = plugin.getConfig().getString("settings.date-format", "yyyy-MM-dd HH:mm");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateFormat);
 
         int slot = 0;
-        for (PunishmentRecord record : history) {
-            if (slot >= 45) break;
+        for (int i = page * itemsPerPage; i < Math.min((page + 1) * itemsPerPage, history.size()); i++) {
+            if (slot >= 45) break; // Don't overflow into bottom row
 
-            Material mat = switch (record.type) {
+            Punishment p = history.get(i);
+            Material mat = switch (p.type) {
                 case BAN -> Material.BARRIER;
                 case MUTE -> Material.PAPER;
                 case KICK -> Material.LEATHER_BOOTS;
                 case WARN -> Material.BOOK;
             };
 
-            String timeAgo = getTimeAgo(record.timestamp);
+            ItemStack item = new ItemStack(mat);
+            ItemMeta meta = item.getItemMeta();
+
             LocalDateTime date = LocalDateTime.ofInstant(
-                    Instant.ofEpochMilli(record.timestamp),
+                    Instant.ofEpochMilli(p.timestamp),
                     ZoneId.systemDefault()
             );
 
-            gui.setItem(slot++, createItem(mat,
-                    "§c" + record.type.getDisplayName() + " §7- " + timeAgo,
-                    "§7Reason: §f" + record.reason,
-                    "§7Duration: §f" + (record.duration.equals("none") ? "N/A" : record.duration),
-                    "§7Staff: §e" + record.staffName,
-                    "§7Date: §f" + date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
-                    "", record.active ? "§a✓ Active" : "§c✗ Expired"));
+            meta.setDisplayName(plugin.color(plugin.getLang().getString("gui.history.punishment-item.name"))
+                    .replace("%type%", p.type.getDisplay())
+                    .replace("%time_ago%", getTimeAgo(p.timestamp)));
+
+            List<String> lore = buildHistoryItemLore(p, date, formatter);
+            meta.setLore(lore);
+            item.setItemMeta(meta);
+            inv.setItem(slot++, item);
         }
-
-        if (history.isEmpty()) {
-            gui.setItem(22, createItem(Material.BOOK, "§7Clean record!"));
-        }
-
-        gui.setItem(49, createItem(Material.ARROW, "§cBack"));
-
-        fillEmpty(gui);
-        staff.openInventory(gui);
     }
 
-    // ========== REASONS EDITOR ==========
+    private List<String> buildHistoryItemLore(Punishment p, LocalDateTime date, DateTimeFormatter formatter) {
+        List<String> lore = new ArrayList<>();
+
+        lore.add(plugin.color(plugin.getLang().getString("gui.history.punishment-item.reason"))
+                .replace("%reason%", p.reason));
+
+        if (p.type == PunishmentType.BAN || p.type == PunishmentType.MUTE) {
+            String duration = p.isPermanent() ? "Permanent" :
+                    plugin.formatTime(p.expiry - p.timestamp);
+            lore.add(plugin.color(plugin.getLang().getString("gui.history.punishment-item.duration"))
+                    .replace("%duration%", duration));
+        }
+
+        lore.add(plugin.color(plugin.getLang().getString("gui.history.punishment-item.staff"))
+                .replace("%staff%", p.staffName));
+        lore.add(plugin.color(plugin.getLang().getString("gui.history.punishment-item.date"))
+                .replace("%date%", date.format(formatter)));
+        lore.add("");
+        lore.add(plugin.color(plugin.getLang().getString(
+                "gui.history.punishment-item." + (p.active ? "active" : "expired"))));
+
+        return lore;
+    }
+
+    public void openAnalytics(Player staff) {
+        String title = plugin.color(plugin.getLang().getString("gui.analytics.title"));
+        Inventory inv = Bukkit.createInventory(null, 54, title);
+
+        var pm = plugin.getPunishmentManager();
+
+        // Overview book
+        inv.setItem(4, createAnalyticsOverview(pm));
+
+        // Punishment type stats
+        int slot = 19;
+        for (var entry : pm.getTypeStats().entrySet()) {
+            inv.setItem(slot++, createTypeStatItem(entry.getKey(), entry.getValue(), pm.getTotalPunishments()));
+        }
+
+        // Staff stats
+        inv.setItem(30, createStaffStatsItem(pm));
+
+        // Player stats
+        inv.setItem(32, createPlayerStatsItem(pm));
+
+        inv.setItem(49, createSimpleButton("gui.analytics.close", Material.BARRIER));
+
+        fillEmpty(inv);
+        staff.openInventory(inv);
+    }
+
+    private ItemStack createAnalyticsOverview(PunishmentManager pm) {
+        ItemStack overview = new ItemStack(Material.BOOK);
+        ItemMeta overviewMeta = overview.getItemMeta();
+        overviewMeta.setDisplayName(plugin.color(plugin.getLang().getString("gui.analytics.overview.name")));
+
+        List<String> overviewLore = Arrays.asList(
+                plugin.color(plugin.getLang().getString("gui.analytics.overview.total"))
+                        .replace("%total%", String.valueOf(pm.getTotalPunishments())),
+                plugin.color(plugin.getLang().getString("gui.analytics.overview.active-bans"))
+                        .replace("%bans%", String.valueOf(getActiveBans())),
+                plugin.color(plugin.getLang().getString("gui.analytics.overview.active-mutes"))
+                        .replace("%mutes%", String.valueOf(getActiveMutes()))
+        );
+        overviewMeta.setLore(overviewLore);
+        overview.setItemMeta(overviewMeta);
+        return overview;
+    }
+
+    private ItemStack createTypeStatItem(PunishmentType type, int count, int total) {
+        Material mat = switch (type) {
+            case BAN -> Material.BARRIER;
+            case MUTE -> Material.PAPER;
+            case KICK -> Material.LEATHER_BOOTS;
+            case WARN -> Material.BOOK;
+        };
+
+        ItemStack item = new ItemStack(mat);
+        ItemMeta meta = item.getItemMeta();
+
+        float percent = total > 0 ? (count * 100f) / total : 0;
+
+        meta.setDisplayName(plugin.color(plugin.getLang().getString("gui.analytics.type-stats.name"))
+                .replace("%type%", type.getDisplay()));
+
+        List<String> lore = Arrays.asList(
+                plugin.color(plugin.getLang().getString("gui.analytics.type-stats.total"))
+                        .replace("%count%", String.valueOf(count)),
+                plugin.color(plugin.getLang().getString("gui.analytics.type-stats.percentage"))
+                        .replace("%percent%", String.format("%.1f", percent))
+        );
+        meta.setLore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private ItemStack createStaffStatsItem(PunishmentManager pm) {
+        ItemStack staffStats = new ItemStack(Material.PLAYER_HEAD);
+        ItemMeta staffMeta = staffStats.getItemMeta();
+        staffMeta.setDisplayName(plugin.color(plugin.getLang().getString("gui.analytics.staff-stats.name")));
+
+        List<String> staffLore = new ArrayList<>();
+        staffLore.add(plugin.color(plugin.getLang().getString("gui.analytics.staff-stats.header")));
+        staffLore.add("");
+
+        // Top 5 staff
+        pm.getStaffStats().entrySet().stream()
+                .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
+                .limit(5)
+                .forEach(entry -> staffLore.add(
+                        plugin.color(plugin.getLang().getString("gui.analytics.staff-stats.entry"))
+                                .replace("%staff%", entry.getKey())
+                                .replace("%count%", String.valueOf(entry.getValue()))
+                ));
+
+        staffMeta.setLore(staffLore);
+        staffStats.setItemMeta(staffMeta);
+        return staffStats;
+    }
+
+    private ItemStack createPlayerStatsItem(PunishmentManager pm) {
+        ItemStack playerStats = new ItemStack(Material.SKELETON_SKULL);
+        ItemMeta playerMeta = playerStats.getItemMeta();
+        playerMeta.setDisplayName(plugin.color(plugin.getLang().getString("gui.analytics.player-stats.name")));
+
+        List<String> playerLore = new ArrayList<>();
+        playerLore.add(plugin.color(plugin.getLang().getString("gui.analytics.player-stats.header")));
+        playerLore.add("");
+
+        // Top 5 punished players
+        pm.getPlayerStats().entrySet().stream()
+                .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
+                .limit(5)
+                .forEach(entry -> playerLore.add(
+                        plugin.color(plugin.getLang().getString("gui.analytics.player-stats.entry"))
+                                .replace("%player%", entry.getKey())
+                                .replace("%count%", String.valueOf(entry.getValue()))
+                ));
+
+        playerMeta.setLore(playerLore);
+        playerStats.setItemMeta(playerMeta);
+        return playerStats;
+    }
+
     public void openReasonsEditor(Player staff) {
-        Inventory gui = Bukkit.createInventory(null, 36, "§8Reason Editor");
+        String title = plugin.color(plugin.getLang().getString("gui.reasons.title"));
+        Inventory inv = Bukkit.createInventory(null, 36, title);
 
-        // Punishment type selectors
-        gui.setItem(10, createItem(Material.BARRIER, "§c§lBAN REASONS",
-                "§7Edit ban reasons", "", "§e► Click to edit"));
+        // One button for each punishment type
+        inv.setItem(10, createTypeSelector(PunishmentType.BAN, Material.BARRIER));
+        inv.setItem(12, createTypeSelector(PunishmentType.MUTE, Material.PAPER));
+        inv.setItem(14, createTypeSelector(PunishmentType.KICK, Material.LEATHER_BOOTS));
+        inv.setItem(16, createTypeSelector(PunishmentType.WARN, Material.BOOK));
+        inv.setItem(31, createSimpleButton("gui.reasons.back", Material.ARROW));
 
-        gui.setItem(12, createItem(Material.PAPER, "§6§lMUTE REASONS",
-                "§7Edit mute reasons", "", "§e► Click to edit"));
-
-        gui.setItem(14, createItem(Material.LEATHER_BOOTS, "§e§lKICK REASONS",
-                "§7Edit kick reasons", "", "§e► Click to edit"));
-
-        gui.setItem(16, createItem(Material.BOOK, "§a§lWARN REASONS",
-                "§7Edit warn reasons", "", "§e► Click to edit"));
-
-        // Info
-        gui.setItem(22, createItem(Material.REDSTONE_TORCH, "§e§lINFORMATION",
-                "§7Click a punishment type to edit",
-                "§7its quick-select reasons.",
-                "",
-                "§7Changes are saved automatically."));
-
-        // Back button
-        gui.setItem(31, createItem(Material.ARROW, "§cBack"));
-
-        fillEmpty(gui);
-        staff.openInventory(gui);
+        fillEmpty(inv);
+        staff.openInventory(inv);
     }
 
     public void openReasonsList(Player staff, PunishmentType type) {
-        String title = "§8Edit " + type.getDisplayName() + " Reasons";
-        Inventory gui = Bukkit.createInventory(null, 54, title);
+        String title = plugin.color(plugin.getLang().getString("gui.reasons.list-title"))
+                .replace("%type%", type.getDisplay());
+        Inventory inv = Bukkit.createInventory(null, 54, title);
 
-        // Get current reasons
         List<String> reasons = plugin.getConfig().getStringList("punishment-reasons." + type.name().toLowerCase());
 
-        // Display current reasons
+        // Display each reason
         int slot = 0;
-        for (String reason : reasons) {
-            if (slot < 45) {
-                gui.setItem(slot, createItem(Material.PAPER, "§e" + reason,
-                        "§7Current reason #" + (slot + 1),
-                        "",
-                        "§aLeft-click: §7Edit",
-                        "§cRight-click: §7Remove"));
-                slot++;
-            }
+        for (int i = 0; i < reasons.size() && slot < 45; i++) {
+            ItemStack item = new ItemStack(Material.PAPER);
+            ItemMeta meta = item.getItemMeta();
+
+            meta.setDisplayName(plugin.color(plugin.getLang().getString("gui.reasons.reason-item.name"))
+                    .replace("%reason%", reasons.get(i)));
+
+            List<String> lore = Arrays.asList(
+                    plugin.color(plugin.getLang().getString("gui.reasons.reason-item.number"))
+                            .replace("%number%", String.valueOf(i + 1)),
+                    "",
+                    plugin.color(plugin.getLang().getString("gui.reasons.reason-item.left-click")),
+                    plugin.color(plugin.getLang().getString("gui.reasons.reason-item.right-click"))
+            );
+            meta.setLore(lore);
+            item.setItemMeta(meta);
+            inv.setItem(slot++, item);
         }
 
         // Add new reason button
-        gui.setItem(49, createItem(Material.EMERALD, "§a§lADD REASON",
-                "§7Add a new reason", "", "§e► Click to add"));
+        ItemStack add = new ItemStack(Material.EMERALD);
+        ItemMeta addMeta = add.getItemMeta();
+        addMeta.setDisplayName(plugin.color(plugin.getLang().getString("gui.reasons.add-reason.name")));
 
-        // Back button
-        gui.setItem(53, createItem(Material.ARROW, "§cBack"));
+        List<String> addLore = new ArrayList<>();
+        for (String line : plugin.getLang().getStringList("gui.reasons.add-reason.lore")) {
+            addLore.add(plugin.color(line));
+        }
+        addMeta.setLore(addLore);
+        add.setItemMeta(addMeta);
+        inv.setItem(49, add);
 
-        fillEmpty(gui);
-        staff.openInventory(gui);
+        inv.setItem(53, createSimpleButton("gui.reasons.back", Material.ARROW));
+
+        fillEmpty(inv);
+        staff.openInventory(inv);
     }
 
-    // ========== ANALYTICS MENU ==========
-    public void openAnalyticsMenu(Player staff) {
-        Inventory gui = Bukkit.createInventory(null, 54, "§8Analytics");
-
-        // Calculate statistics
-        Map<PunishmentType, Integer> typeCount = new HashMap<>();
-        Map<String, Integer> staffCount = new HashMap<>();
-        Map<String, Integer> playerCount = new HashMap<>();
-        int totalPunishments = 0;
-        int todayPunishments = 0;
-        int weekPunishments = 0;
-
-        long now = System.currentTimeMillis();
-        long todayStart = getStartOfDay(now);
-        long weekStart = todayStart - (7 * 24 * 60 * 60 * 1000L);
-
-        // Process all records
-        for (List<PunishmentRecord> records : plugin.getHistory().values()) {
-            for (PunishmentRecord record : records) {
-                totalPunishments++;
-
-                // Count by type
-                typeCount.merge(record.type, 1, Integer::sum);
-
-                // Count by staff
-                staffCount.merge(record.staffName, 1, Integer::sum);
-
-                // Count by player
-                playerCount.merge(record.playerName, 1, Integer::sum);
-
-                // Time-based counts
-                if (record.timestamp >= todayStart) todayPunishments++;
-                if (record.timestamp >= weekStart) weekPunishments++;
-            }
-        }
-
-        // Overview (slot 4)
-        gui.setItem(4, createItem(Material.BOOK, "§6§lOVERVIEW",
-                "§7Total punishments: §e" + totalPunishments,
-                "§7Active bans: §c" + plugin.getActiveBansCount(),
-                "§7Active mutes: §6" + plugin.getActiveMutesCount(),
-                "",
-                "§7Today: §a" + todayPunishments,
-                "§7This week: §b" + weekPunishments));
-
-        // Type breakdown (slots 19-22)
-        int typeSlot = 19;
-        for (PunishmentType type : PunishmentType.values()) {
-            Material mat = switch (type) {
-                case BAN -> Material.BARRIER;
-                case MUTE -> Material.PAPER;
-                case KICK -> Material.LEATHER_BOOTS;
-                case WARN -> Material.BOOK;
-            };
-
-            int count = typeCount.getOrDefault(type, 0);
-            float percentage = totalPunishments > 0 ? (count * 100f) / totalPunishments : 0;
-
-            gui.setItem(typeSlot++, createItem(mat,
-                    "§e" + type.getDisplayName() + "s",
-                    "§7Total: §f" + count,
-                    "§7Percentage: §f" + String.format("%.1f%%", percentage)));
-        }
-
-        // Top staff (slot 30)
-        List<String> topStaffLore = new ArrayList<>();
-        topStaffLore.add("§7Most active staff:");
-        topStaffLore.add("");
-
-        staffCount.entrySet().stream()
-                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                .limit(5)
-                .forEach(entry ->
-                        topStaffLore.add("§b" + entry.getKey() + ": §f" + entry.getValue())
-                );
-
-        gui.setItem(30, createItem(Material.PLAYER_HEAD, "§b§lTOP STAFF",
-                topStaffLore.toArray(new String[0])));
-
-        // Most punished (slot 32)
-        List<String> topPlayersLore = new ArrayList<>();
-        topPlayersLore.add("§7Most punished players:");
-        topPlayersLore.add("");
-
-        playerCount.entrySet().stream()
-                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                .limit(5)
-                .forEach(entry ->
-                        topPlayersLore.add("§c" + entry.getKey() + ": §f" + entry.getValue())
-                );
-
-        gui.setItem(32, createItem(Material.SKELETON_SKULL, "§c§lTOP OFFENDERS",
-                topPlayersLore.toArray(new String[0])));
-
-        // Graph visualization (bottom row)
-        drawGraph(gui, typeCount, totalPunishments);
-
-        // Back button
-        gui.setItem(49, createItem(Material.ARROW, "§cBack"));
-
-        fillEmpty(gui);
-        staff.openInventory(gui);
-    }
-
-    // ========== CLICK HANDLER ==========
     @EventHandler
     public void onClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player player)) return;
 
         String title = e.getView().getTitle();
-        if (!title.startsWith("§8")) return;
+        if (!title.startsWith("§8")) return; // Our GUIs start with dark gray
 
         e.setCancelled(true);
 
         if (e.getCurrentItem() == null || e.getCurrentItem().getType() == Material.AIR) return;
 
+        // Ignore filler items
+        if (e.getCurrentItem().getType() == Material.valueOf(plugin.getConfig().getString("gui.filler-material", "GRAY_STAINED_GLASS_PANE"))) return;
+
         int slot = e.getSlot();
 
-        // Main menu
+        // Main punishment menu
         if (title.contains("Punish »")) {
-            String name = title.split("» §c")[1];
-            OfflinePlayer target = Bukkit.getOfflinePlayer(name);
+            handleMainMenuClick(player, title, slot);
+            return;
+        }
 
-            switch (slot) {
-                case 4 -> openHistoryMenu(player, target);
-                case 20 -> openPunishmentMenu(player, target, PunishmentType.BAN);
-                case 22 -> openPunishmentMenu(player, target, PunishmentType.MUTE);
-                case 24 -> openPunishmentMenu(player, target, PunishmentType.KICK);
-                case 30 -> openPunishmentMenu(player, target, PunishmentType.WARN);
-                case 32 -> openHistoryMenu(player, target);
-            }
+        // Punishment type menu
+        Session session = sessions.get(player.getUniqueId());
+        if (session != null && (title.contains("Ban ") || title.contains("Mute ") ||
+                title.contains("Kick ") || title.contains("Warn "))) {
+            handlePunishmentMenuClick(player, session, slot, e);
             return;
         }
 
         // History menu
         if (title.contains("History »")) {
             if (slot == 49) {
-                String name = title.split("» §c")[1];
+                String name = title.split("» §c")[1].split(" §7")[0];
                 openMainMenu(player, Bukkit.getOfflinePlayer(name));
             }
             return;
         }
 
-        // Reason Editor menu
-        if (title.equals("§8Reason Editor")) {
-            switch (slot) {
-                case 10 -> openReasonsList(player, PunishmentType.BAN);
-                case 12 -> openReasonsList(player, PunishmentType.MUTE);
-                case 14 -> openReasonsList(player, PunishmentType.KICK);
-                case 16 -> openReasonsList(player, PunishmentType.WARN);
-                case 31 -> player.closeInventory();
-            }
-            return;
-        }
-
-        // Reasons List menu
-        if (title.startsWith("§8Edit ") && title.contains(" Reasons")) {
-            // Extract type from title
-            PunishmentType type = null;
-            for (PunishmentType pt : PunishmentType.values()) {
-                if (title.contains(pt.getDisplayName())) {
-                    type = pt;
-                    break;
-                }
-            }
-
-            if (type != null) {
-                if (slot == 53) { // Back
-                    openReasonsEditor(player);
-                } else if (slot == 49) { // Add new
-                    ReasonEditSession editSession = new ReasonEditSession();
-                    editSession.type = type;
-                    editSession.action = ReasonEditAction.ADD;
-                    reasonEditSessions.put(player.getUniqueId(), editSession);
-
-                    player.closeInventory();
-                    player.sendMessage("§eType the new reason in chat (or 'cancel'):");
-                } else if (slot < 45 && e.getCurrentItem() != null && e.getCurrentItem().getType() == Material.PAPER) {
-                    // Edit or remove existing reason
-                    List<String> reasons = plugin.getConfig().getStringList("punishment-reasons." + type.name().toLowerCase());
-                    if (slot < reasons.size()) {
-                        if (e.isLeftClick()) { // Edit
-                            ReasonEditSession editSession = new ReasonEditSession();
-                            editSession.type = type;
-                            editSession.action = ReasonEditAction.EDIT;
-                            editSession.index = slot;
-                            editSession.oldReason = reasons.get(slot);
-                            reasonEditSessions.put(player.getUniqueId(), editSession);
-
-                            player.closeInventory();
-                            player.sendMessage("§eType the new reason in chat (or 'cancel'):");
-                            player.sendMessage("§7Current: §f" + reasons.get(slot));
-                        } else if (e.isRightClick()) { // Remove
-                            reasons.remove(slot);
-                            plugin.getConfig().set("punishment-reasons." + type.name().toLowerCase(), reasons);
-                            plugin.saveConfig();
-                            openReasonsList(player, type);
-                        }
-                    }
-                }
-            }
-            return;
-        }
-
         // Analytics menu
-        if (title.equals("§8Analytics")) {
-            if (slot == 49) {
-                player.closeInventory();
-            }
+        if (title.contains("Analytics")) {
+            if (slot == 49) player.closeInventory();
             return;
         }
 
-        // Punishment menu
-        PunishmentSession session = sessions.get(player.getUniqueId());
-        if (session == null) return;
+        // Reason editor
+        if (title.contains("Reason Editor")) {
+            handleReasonEditorClick(player, slot);
+            return;
+        }
+
+        // Reason list
+        if (title.contains("Edit") && title.contains("Reasons")) {
+            handleReasonListClick(player, title, slot, e);
+        }
+    }
+
+    private void handleMainMenuClick(Player player, String title, int slot) {
+        String name = title.split("» §c")[1];
+        OfflinePlayer target = Bukkit.getOfflinePlayer(name);
 
         switch (slot) {
-            case 4 -> { // Custom reason
+            case 4, 32 -> openHistory(player, target);
+            case 20 -> openPunishmentMenu(player, target, PunishmentType.BAN);
+            case 22 -> openPunishmentMenu(player, target, PunishmentType.MUTE);
+            case 24 -> openPunishmentMenu(player, target, PunishmentType.KICK);
+            case 30 -> openPunishmentMenu(player, target, PunishmentType.WARN);
+        }
+    }
+
+    private void handlePunishmentMenuClick(Player player, Session session, int slot, InventoryClickEvent e) {
+        switch (slot) {
+            case 4 -> {
+                // Custom reason
                 player.closeInventory();
-                session.awaitingInput = true;
-                player.sendMessage("§6Type the reason in chat (or 'cancel'):");
+                session.inputMode = true;
+                player.sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.input-reason")));
+                player.sendMessage(plugin.getPrefix() + "§7Maximum length: §e" +
+                        plugin.getConfig().getInt("advanced.max-reason-length", 100) + " §7characters");
             }
-
-            case 8 -> { // Silent toggle
-                session.silent = !session.silent;
-                openPunishmentMenu(player, session.target, session.type);
-            }
-
-            case 13 -> { // Duration
-                if (session.type == PunishmentType.BAN || session.type == PunishmentType.MUTE) {
-                    // Load durations from config
-                    List<String> configDurations = plugin.getConfig().getStringList("durations.options");
-                    String[] durations = configDurations.isEmpty() ?
-                            new String[]{"30m", "1h", "3h", "1d", "3d", "7d", "30d", "permanent"} :
-                            configDurations.toArray(new String[0]);
-
-                    int idx = Arrays.asList(durations).indexOf(session.duration);
-                    if (idx == -1) idx = 0; // Default to first if not found
-
-                    if (e.isLeftClick()) {
-                        idx = (idx + 1) % durations.length;
-                    } else if (e.isRightClick()) {
-                        idx = (idx - 1 + durations.length) % durations.length;
-                    }
-
-                    session.duration = durations[idx];
+            case 8 -> {
+                // Silent toggle
+                if (player.hasPermission("quickban.silent")) {
+                    session.silent = !session.silent;
                     openPunishmentMenu(player, session.target, session.type);
                 }
             }
-
-            case 19, 20, 21, 28, 29, 30 -> { // Quick reasons
-                String reason = ChatColor.stripColor(e.getCurrentItem().getItemMeta().getDisplayName());
-                session.reason = session.reason.equals(reason) ? "" : reason;
-                openPunishmentMenu(player, session.target, session.type);
+            case 13 -> {
+                // Duration selector
+                if (session.type == PunishmentType.BAN || session.type == PunishmentType.MUTE) {
+                    cycleDuration(session, e.isLeftClick());
+                    openPunishmentMenu(player, session.target, session.type);
+                }
             }
-
-            case 45 -> { // Back
+            case 19, 20, 21, 28, 29, 30 -> {
+                // Quick reason selection
+                ItemMeta meta = e.getCurrentItem().getItemMeta();
+                if (meta != null) {
+                    String reason = meta.getDisplayName();
+                    reason = reason.startsWith("§a") || reason.startsWith("§e") ? reason.substring(2) : reason;
+                    session.reason = session.reason.equals(reason) ? "" : reason;
+                    openPunishmentMenu(player, session.target, session.type);
+                }
+            }
+            case 45 -> {
+                // Back
                 sessions.remove(player.getUniqueId());
                 openMainMenu(player, session.target);
             }
-
-            case 49 -> { // Confirm
+            case 49 -> {
+                // Confirm punishment
                 if (!session.reason.isEmpty()) {
-                    player.closeInventory();
+                    String dur = (session.type == PunishmentType.KICK || session.type == PunishmentType.WARN) ?
+                            "none" : session.duration;
+                    plugin.getPunishmentManager().punish(
+                            player, session.target, session.type,
+                            session.reason, dur, session.silent
+                    );
                     sessions.remove(player.getUniqueId());
-
-                    String dur = (session.type == PunishmentType.KICK ||
-                            session.type == PunishmentType.WARN) ? "none" : session.duration;
-
-                    plugin.executePunishment(player, session.target, session.type,
-                            session.reason, dur, session.silent);
+                    player.closeInventory();
                 }
             }
-
-            case 53 -> { // Cancel
+            case 53 -> {
+                // Cancel
                 sessions.remove(player.getUniqueId());
                 player.closeInventory();
-                player.sendMessage(plugin.getPrefix() + "§cCancelled.");
+                player.sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.cancelled")));
             }
         }
     }
 
-    // ========== CHAT HANDLER ==========
+    private void cycleDuration(Session session, boolean forward) {
+        List<String> durations = plugin.getConfig().getStringList("durations.options");
+        int idx = durations.indexOf(session.duration);
+        if (idx == -1) idx = 0;
+
+        if (forward) {
+            idx = (idx + 1) % durations.size();
+        } else {
+            idx = (idx - 1 + durations.size()) % durations.size();
+        }
+
+        session.duration = durations.get(idx);
+    }
+
+    private void handleReasonEditorClick(Player player, int slot) {
+        switch (slot) {
+            case 10 -> openReasonsList(player, PunishmentType.BAN);
+            case 12 -> openReasonsList(player, PunishmentType.MUTE);
+            case 14 -> openReasonsList(player, PunishmentType.KICK);
+            case 16 -> openReasonsList(player, PunishmentType.WARN);
+            case 31 -> player.closeInventory();
+        }
+    }
+
+    private void handleReasonListClick(Player player, String title, int slot, InventoryClickEvent e) {
+        // Find punishment type from title
+        PunishmentType type = null;
+        for (PunishmentType t : PunishmentType.values()) {
+            if (title.contains(t.getDisplay())) {
+                type = t;
+                break;
+            }
+        }
+
+        if (type == null) return;
+
+        final PunishmentType finalType = type;
+
+        if (slot == 53) {
+            // Back to editor
+            openReasonsEditor(player);
+        } else if (slot == 49) {
+            // Add new reason
+            ReasonEditSession editSession = new ReasonEditSession();
+            editSession.type = finalType;
+            editSession.action = ReasonEditAction.ADD;
+            reasonEditSessions.put(player.getUniqueId(), editSession);
+
+            player.closeInventory();
+            player.sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.input-reason")));
+            player.sendMessage(plugin.getPrefix() + "§7Maximum length: §e" +
+                    plugin.getConfig().getInt("advanced.max-reason-length", 100) + " §7characters");
+        } else if (slot < 45 && e.getCurrentItem().getType() == Material.PAPER) {
+            // Edit or remove existing reason
+            List<String> reasons = plugin.getConfig().getStringList("punishment-reasons." + finalType.name().toLowerCase());
+            if (slot < reasons.size()) {
+                if (e.isLeftClick()) {
+                    // Edit
+                    ReasonEditSession editSession = new ReasonEditSession();
+                    editSession.type = finalType;
+                    editSession.action = ReasonEditAction.EDIT;
+                    editSession.index = slot;
+                    editSession.oldReason = reasons.get(slot);
+                    reasonEditSessions.put(player.getUniqueId(), editSession);
+
+                    player.closeInventory();
+                    player.sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.input-edit")));
+                    player.sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.current-reason"))
+                            .replace("%reason%", reasons.get(slot)));
+                    player.sendMessage(plugin.getPrefix() + "§7Maximum length: §e" +
+                            plugin.getConfig().getInt("advanced.max-reason-length", 100) + " §7characters");
+                } else if (e.isRightClick()) {
+                    // Remove
+                    reasons.remove(slot);
+                    plugin.getConfig().set("punishment-reasons." + finalType.name().toLowerCase(), reasons);
+                    plugin.saveConfig();
+                    player.sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.reason-removed")));
+                    openReasonsList(player, finalType);
+                }
+            }
+        }
+    }
+
     @EventHandler
     public void onChat(AsyncPlayerChatEvent e) {
-        // Handle punishment session input
-        PunishmentSession session = sessions.get(e.getPlayer().getUniqueId());
-        if (session != null && session.awaitingInput) {
+        // Handle custom reason input
+        Session session = sessions.get(e.getPlayer().getUniqueId());
+        if (session != null && session.inputMode) {
             e.setCancelled(true);
-            session.awaitingInput = false;
+            session.inputMode = false;
 
             if (!e.getMessage().equalsIgnoreCase("cancel")) {
-                session.reason = e.getMessage();
+                if (plugin.checkReasonLength(e.getMessage())) {
+                    session.reason = e.getMessage();
+                } else {
+                    e.getPlayer().sendMessage(plugin.getPrefix() + "§cReason is too long! Maximum: " +
+                            plugin.getConfig().getInt("advanced.max-reason-length", 100) + " characters");
+                    e.getPlayer().sendMessage(plugin.getPrefix() + "§7Your reason was §e" + e.getMessage().length() + " §7characters.");
+                }
             }
 
+            // Reopen the menu
             Bukkit.getScheduler().runTask(plugin, () ->
-                    openPunishmentMenu(e.getPlayer(), session.target, session.type)
-            );
+                    openPunishmentMenu(e.getPlayer(), session.target, session.type));
             return;
         }
 
-        // Handle reason edit session input
+        // Handle reason editor input
         ReasonEditSession editSession = reasonEditSessions.get(e.getPlayer().getUniqueId());
         if (editSession != null) {
             e.setCancelled(true);
             reasonEditSessions.remove(e.getPlayer().getUniqueId());
 
             if (!e.getMessage().equalsIgnoreCase("cancel")) {
+                // Check length
+                if (!plugin.checkReasonLength(e.getMessage())) {
+                    e.getPlayer().sendMessage(plugin.getPrefix() + "§cReason is too long! Maximum: " +
+                            plugin.getConfig().getInt("advanced.max-reason-length", 100) + " characters");
+                    e.getPlayer().sendMessage(plugin.getPrefix() + "§7Your reason was §e" + e.getMessage().length() + " §7characters.");
+                    Bukkit.getScheduler().runTask(plugin, () ->
+                            openReasonsList(e.getPlayer(), editSession.type));
+                    return;
+                }
+
                 List<String> reasons = plugin.getConfig().getStringList("punishment-reasons." + editSession.type.name().toLowerCase());
 
                 switch (editSession.action) {
-                    case ADD -> reasons.add(e.getMessage());
+                    case ADD -> {
+                        reasons.add(e.getMessage());
+                        e.getPlayer().sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.reason-added")));
+                    }
                     case EDIT -> {
                         if (editSession.index < reasons.size()) {
                             reasons.set(editSession.index, e.getMessage());
+                            e.getPlayer().sendMessage(plugin.color(plugin.getLang().getString("gui.reasons.reason-updated")));
                         }
                     }
                 }
 
                 plugin.getConfig().set("punishment-reasons." + editSession.type.name().toLowerCase(), reasons);
                 plugin.saveConfig();
-
-                e.getPlayer().sendMessage(plugin.getPrefix() + "§aReason updated successfully!");
             }
 
             Bukkit.getScheduler().runTask(plugin, () ->
-                    openReasonsList(e.getPlayer(), editSession.type)
-            );
+                    openReasonsList(e.getPlayer(), editSession.type));
         }
     }
 
-    // ========== UTILITIES ==========
-    private ItemStack createItem(Material mat, String name, String... lore) {
-        ItemStack item = new ItemStack(mat);
+    // Helper methods
+    private ItemStack createButton(String type, String playerName, Material material) {
+        ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(name);
-        if (lore.length > 0) meta.setLore(Arrays.asList(lore));
+
+        meta.setDisplayName(plugin.color(plugin.getLang().getString("gui.main." + type + ".name")));
+
+        List<String> lore = new ArrayList<>();
+        for (String line : plugin.getLang().getStringList("gui.main." + type + ".lore")) {
+            lore.add(plugin.color(line).replace("%player%", playerName));
+        }
+        meta.setLore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private ItemStack createSimpleButton(String path, Material material) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+
+        meta.setDisplayName(plugin.color(plugin.getLang().getString(path + ".name")));
+
+        if (plugin.getLang().contains(path + ".lore")) {
+            List<String> lore = new ArrayList<>();
+            if (plugin.getLang().isList(path + ".lore")) {
+                for (String line : plugin.getLang().getStringList(path + ".lore")) {
+                    lore.add(plugin.color(line));
+                }
+            } else {
+                lore.add(plugin.color(plugin.getLang().getString(path + ".lore")));
+            }
+            meta.setLore(lore);
+        }
+
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private ItemStack createTypeSelector(PunishmentType type, Material material) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+
+        meta.setDisplayName(plugin.color(plugin.getLang().getString("gui.reasons.type-selector." + type.name().toLowerCase())));
+
+        List<String> lore = new ArrayList<>();
+        for (String line : plugin.getLang().getStringList("gui.reasons.type-selector.lore")) {
+            lore.add(plugin.color(line).replace("%type%", type.name().toLowerCase()));
+        }
+        meta.setLore(lore);
         item.setItemMeta(meta);
         return item;
     }
 
     private void fillEmpty(Inventory inv) {
-        ItemStack filler = createItem(Material.GRAY_STAINED_GLASS_PANE, " ");
+        if (!plugin.getConfig().getBoolean("gui.fill-empty-slots", true)) return;
+
+        String fillerName = plugin.getConfig().getString("gui.filler-material", "GRAY_STAINED_GLASS_PANE");
+        Material filler = Material.GRAY_STAINED_GLASS_PANE;
+        try {
+            filler = Material.valueOf(fillerName);
+        } catch (Exception ignored) {}
+
+        ItemStack fillerItem = new ItemStack(filler);
+        ItemMeta meta = fillerItem.getItemMeta();
+        meta.setDisplayName(" ");
+        fillerItem.setItemMeta(meta);
+
         for (int i = 0; i < inv.getSize(); i++) {
-            if (inv.getItem(i) == null) inv.setItem(i, filler);
+            if (inv.getItem(i) == null) {
+                inv.setItem(i, fillerItem);
+            }
         }
-    }
-
-    private String[] getReasons(PunishmentType type) {
-        // Try to load from config first
-        List<String> configReasons = plugin.getConfig().getStringList("punishment-reasons." + type.name().toLowerCase());
-
-        if (!configReasons.isEmpty()) {
-            return configReasons.toArray(new String[0]);
-        }
-
-        // Default reasons if not in config
-        return switch (type) {
-            case BAN -> new String[]{"Hacking", "Griefing", "Ban Evasion", "Exploiting", "Toxicity", "Scamming"};
-            case MUTE -> new String[]{"Spam", "Toxicity", "Advertising", "Caps", "Swearing", "Harassment"};
-            case KICK -> new String[]{"AFK", "Inappropriate", "Server Full", "Restart", "Test", "Warning"};
-            case WARN -> new String[]{"Minor Rule Break", "Language", "Behavior", "Build", "Chat", "Other"};
-        };
-    }
-
-    private Material getDurationMaterial(String dur) {
-        return switch (dur) {
-            case "30m" -> Material.LIME_WOOL;
-            case "1h" -> Material.YELLOW_WOOL;
-            case "3h" -> Material.ORANGE_WOOL;
-            case "1d", "3d" -> Material.RED_WOOL;
-            case "7d" -> Material.PURPLE_WOOL;
-            case "30d" -> Material.BLACK_WOOL;
-            case "permanent" -> Material.BEDROCK;
-            default -> Material.WHITE_WOOL;
-        };
-    }
-
-    private String getDurationColor(String dur) {
-        return switch (dur) {
-            case "30m" -> "§a";
-            case "1h" -> "§e";
-            case "3h" -> "§6";
-            case "1d", "3d" -> "§c";
-            case "7d" -> "§5";
-            case "30d" -> "§8";
-            case "permanent" -> "§4";
-            default -> "§f";
-        };
     }
 
     private String formatDuration(String dur) {
         return switch (dur) {
+            case "5m" -> "5 Minutes";
+            case "10m" -> "10 Minutes";
             case "30m" -> "30 Minutes";
             case "1h" -> "1 Hour";
-            case "3h" -> "3 Hours";
+            case "2h" -> "2 Hours";
+            case "6h" -> "6 Hours";
+            case "12h" -> "12 Hours";
             case "1d" -> "1 Day";
             case "3d" -> "3 Days";
             case "7d" -> "7 Days";
+            case "14d" -> "14 Days";
             case "30d" -> "30 Days";
+            case "60d" -> "60 Days";
+            case "90d" -> "90 Days";
             case "permanent" -> "Permanent";
-            default -> "Not Set";
+            default -> dur; // Show raw value if not recognized
         };
     }
 
@@ -692,52 +900,29 @@ public class GUIManager implements Listener {
         return seconds + "s ago";
     }
 
-    private long getStartOfDay(long timestamp) {
-        Calendar cal = Calendar.getInstance();
-        cal.setTimeInMillis(timestamp);
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-        return cal.getTimeInMillis();
+    // Stats helpers
+    public int getActiveBans() {
+        return (int) plugin.getPunishmentManager().getAllHistory().values().stream()
+                .flatMap(List::stream)
+                .filter(p -> p.type == PunishmentType.BAN && p.active && !p.isExpired())
+                .count();
     }
 
-    private void drawGraph(Inventory gui, Map<PunishmentType, Integer> typeCount, int total) {
-        if (total == 0) return;
-
-        int[] slots = {45, 46, 47, 48, 50, 51, 52, 53};
-        int slotIndex = 0;
-
-        for (PunishmentType type : PunishmentType.values()) {
-            if (slotIndex >= slots.length) break;
-
-            int count = typeCount.getOrDefault(type, 0);
-            float percentage = (count * 100f) / total;
-
-            Material mat = Material.WHITE_STAINED_GLASS_PANE;
-            if (percentage > 40) mat = Material.RED_STAINED_GLASS_PANE;
-            else if (percentage > 25) mat = Material.ORANGE_STAINED_GLASS_PANE;
-            else if (percentage > 10) mat = Material.YELLOW_STAINED_GLASS_PANE;
-            else if (percentage > 0) mat = Material.LIME_STAINED_GLASS_PANE;
-
-            gui.setItem(slots[slotIndex++], createItem(mat,
-                    "§f" + type.getDisplayName(),
-                    "§7" + String.format("%.1f%%", percentage)));
-
-            if (slotIndex < slots.length) {
-                gui.setItem(slots[slotIndex++], createItem(Material.GRAY_STAINED_GLASS_PANE, " "));
-            }
-        }
+    public int getActiveMutes() {
+        return (int) plugin.getPunishmentManager().getAllHistory().values().stream()
+                .flatMap(List::stream)
+                .filter(p -> p.type == PunishmentType.MUTE && p.active && !p.isExpired())
+                .count();
     }
 
-    // ========== SESSION CLASSES ==========
-    private static class PunishmentSession {
+    // Session classes
+    private static class Session {
         OfflinePlayer target;
         PunishmentType type;
         String reason = "";
-        String duration = "7d";
+        String duration = "";
         boolean silent = false;
-        boolean awaitingInput = false;
+        boolean inputMode = false;
     }
 
     private static class ReasonEditSession {

@@ -1,151 +1,96 @@
 name: QuickBanUI
-version: '2.0'
+version: 2.0
 main: net.mrcappy.quickbanui.QuickBanUI
-api-version: '1.20'
-authors: [MrCappy]
-description: Advanced punishment GUI plugin with history, analytics, and more!
+api-version: 1.19
+author: MrCappy
+description: A simple and intuitive punishment GUI plugin for Minecraft servers
+website: https://github.com/MrCappy/QuickBanUI
 
 commands:
   punish:
-    description: Opens the punishment GUI
-    usage: /punish <player>
-    permission: quickban.punish
-    aliases: [punishment, pun]
+    description: Open the punishment GUI for a player
+    usage: /<command> <player>
+    aliases: [p]
+
   ban:
-    description: Opens the ban GUI for a player
-    usage: /ban <player>
-    permission: quickban.ban
-    aliases: [qban]
+    description: Ban a player using the GUI
+    usage: /<command> <player>
+
   mute:
-    description: Opens the mute GUI for a player
-    usage: /mute <player>
-    permission: quickban.mute
-    aliases: [qmute]
+    description: Mute a player using the GUI
+    usage: /<command> <player>
+
   kick:
-    description: Opens the kick GUI for a player
-    usage: /kick <player>
-    permission: quickban.kick
-    aliases: [qkick]
+    description: Kick a player using the GUI
+    usage: /<command> <player>
+
   warn:
-    description: Opens the warn GUI for a player
-    usage: /warn <player>
-    permission: quickban.warn
-    aliases: [qwarn]
+    description: Warn a player using the GUI
+    usage: /<command> <player>
+
   unban:
     description: Unban a player
-    usage: /unban <player>
-    permission: quickban.unban
+    usage: /<command> <player>
+
   unmute:
     description: Unmute a player
-    usage: /unmute <player>
-    permission: quickban.unmute
+    usage: /<command> <player>
+
   history:
-    description: View punishment history for a player
-    usage: /history <player>
-    permission: quickban.history
-    aliases: [punishhistory, ph]
+    description: View a player's punishment history
+    usage: /<command> <player>
+    aliases: [hist]
+
   qb:
-    description: QuickBanUI admin commands
-    usage: /qb <reload|reasons|analytics>
-    permission: quickban.admin
+    description: QuickBanUI admin command
+    usage: /<command> [reload|analytics|reasons|backup|update]
     aliases: [quickban, quickbanui]
 
 permissions:
-  quickban.*:
-    description: All QuickBanUI permissions
-    default: op
-    children:
-      quickban.punish: true
-      quickban.ban: true
-      quickban.mute: true
-      quickban.kick: true
-      quickban.warn: true
-      quickban.unban: true
-      quickban.unmute: true
-      quickban.history: true
-      quickban.notify: true
-      quickban.admin: true
-      quickban.silent: true
-      quickban.undo: true
-      quickban.bypass.cooldown: true
-
-  quickban.helper:
-    description: Helper permissions (warn only)
-    default: false
-    children:
-      quickban.warn: true
-      quickban.history: true
-      quickban.notify: true
-
-  quickban.mod:
-    description: Moderator permissions
-    default: false
-    children:
-      quickban.punish: true
-      quickban.ban: true
-      quickban.mute: true
-      quickban.kick: true
-      quickban.warn: true
-      quickban.history: true
-      quickban.notify: true
-
-  quickban.admin:
-    description: Admin permissions
-    default: false
-    children:
-      quickban.punish: true
-      quickban.ban: true
-      quickban.mute: true
-      quickban.kick: true
-      quickban.warn: true
-      quickban.unban: true
-      quickban.unmute: true
-      quickban.history: true
-      quickban.notify: true
-      quickban.silent: true
-      quickban.undo: true
-      quickban.reload: true
-      quickban.bypass.cooldown: true
-
   quickban.punish:
-    description: Allows using the /punish command
+    description: Allows access to the main punishment GUI
     default: op
+
   quickban.ban:
     description: Allows banning players
     default: op
+
   quickban.mute:
     description: Allows muting players
     default: op
+
   quickban.kick:
     description: Allows kicking players
     default: op
+
   quickban.warn:
     description: Allows warning players
     default: op
+
   quickban.unban:
     description: Allows unbanning players
     default: op
+
   quickban.unmute:
     description: Allows unmuting players
     default: op
+
   quickban.history:
     description: Allows viewing punishment history
     default: op
+
   quickban.notify:
     description: Receive punishment notifications
     default: op
+
+  quickban.exempt:
+    description: Exempt from being punished
+    default: false
+
   quickban.silent:
     description: Allows silent punishments
     default: op
-  quickban.undo:
-    description: Allows undoing punishments
+
+  quickban.admin:
+    description: Access to admin commands
     default: op
-  quickban.reload:
-    description: Allows reloading the plugin
-    default: op
-  quickban.bypass.cooldown:
-    description: Bypass punishment cooldown
-    default: op
-  quickban.exempt:
-    description: Cannot be punished through GUI
-    default: false
